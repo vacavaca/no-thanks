@@ -1,8 +1,9 @@
 {
-    "gitbook":   "3.2.3",
-    "root":      "./doc",
+    "gitbook":   "3.2.2",
+    "root":      "doc/",
     "structure": { 
-      "readme":  "intro.md",
+      "readme": "intro.md",
       "summary": "summary.md" 
-    }
+    },
+    "plugins": ["-sharing"]
   }

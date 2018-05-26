@@ -1,0 +1,11 @@
+{
+  "parserOptions": {
+    "sourceType": "module",
+    "ecmaVersion": 8
+  },
+  "rules": {
+    "strict": 2,
+    "max-len": ["error", {"code": 80}],
+    "require-jsdoc": 0
+  }
+}

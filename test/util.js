@@ -83,4 +83,23 @@ const checkUnhandledRejections = test => done => {
     })
 }
 
-module.exports = { schedule, delay, endsWith, checkUnhandledRejections }
+const patchItToCheckUnhandledRejections = () => {
+    const bufferIt = it
+    const itCheckingRejections = (name, test) =>
+        bufferIt(name, test != null ? checkUnhandledRejections(test) : test)
+
+    for (const k of Object.keys(bufferIt)) {
+        itCheckingRejections[k] = (name, test) =>
+            bufferIt[k](name, checkUnhandledRejections(test))
+    }
+
+    return itCheckingRejections
+}
+
+module.exports = {
+    schedule,
+    delay,
+    endsWith,
+    checkUnhandledRejections,
+    patchItToCheckUnhandledRejections
+}

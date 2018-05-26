@@ -1,7 +1,6 @@
 # Table of content 
-  * [Introduction](intro.md)
   * [Examples](examples.md)
-    * [Cancellable Promise](examples.md#cancellablepromise)
+    * [Cancellable Promise](examples.mdcancellablepromise)
   * [API Reference](api.md)
     * [cancellable](reference/cancellable.md)
     * [coroutine](reference/coroutine.md)

@@ -1,8 +1,7 @@
-/* eslint-disable require-jsdoc */
 const assert = require('assert')
 
 const { CancellablePromise, cancellable } = require('../src')
-const { endsWith, checkUnhandledRejections } = require('./util')
+const { endsWith, patchItToCheckUnhandledRejections } = require('./util')
 
 const createTask = (timeout, name, log) => new Promise(resolve => {
     if (log != null)
@@ -14,16 +13,7 @@ const createTask = (timeout, name, log) => new Promise(resolve => {
     }, timeout)
 })
 
-const bufferIt = it
-const itCheckingRejections = (name, test) =>
-    bufferIt(name, checkUnhandledRejections(test))
-
-for (const k of Object.keys(bufferIt)) {
-    itCheckingRejections[k] = (name, test) =>
-        bufferIt[k](name, checkUnhandledRejections(test))
-}
-
-global.it = itCheckingRejections
+global.it = patchItToCheckUnhandledRejections()
 
 const describeFactories = (factories, description) => {
     for (const name in factories) {
@@ -105,7 +95,7 @@ describeFactories(factories, (factory) => {
                 assert.equal(result, 'task')
                 return createTask(1, 'task 2')
             })
-            .catch(() => assert.fail())
+            .catch(() => assert.fail("unexpected error"))
             .then(result => assert.equal(result, 'task 2'))
             .then(done, done)
     })
@@ -118,15 +108,15 @@ describeFactories(factories, (factory) => {
                 assert.equal(result, 'task')
                 return createTask(1, 'task 2')
             })
-            .catch(() => assert.fail())
+            .catch(() => assert.fail("unexpected error"))
             .then(() => Promise.reject(error))
-            .then(() => assert.fail())
+            .then(() => assert.fail("unexpected fulfillment"))
             .catch(err => assert.equal(err, error))
             .then(() => 42)
             .then(result => assert.equal(result, 42))
             .then(() => { throw new Error("AAA") })
             .catch(() => { throw error2 })
-            .then(() => assert.fail())
+            .then(() => assert.fail("unexpected fulfillment"))
             .catch(err => assert.equal(err, error2))
             .then(done, done)
     })
@@ -134,7 +124,7 @@ describeFactories(factories, (factory) => {
     it('should reject', done => {
         const error = new Error("ooops")
         factory(Promise.reject(error))
-            .then(() => assert.fail())
+            .then(() => assert.fail("unexpected fulfillment"))
             .catch(err => assert.equal(err, error))
             .then(done, done)
     })
@@ -143,7 +133,7 @@ describeFactories(factories, (factory) => {
         const error = new Error("ooops")
         factory(createTask(1, 'task'))
             .then(() => { throw error })
-            .then(() => assert.fail())
+            .then(() => assert.fail("unexpected fulfillment"))
             .catch(err => assert.equal(err, error))
             .then(done, done)
     })
@@ -297,12 +287,15 @@ describeFactories(factories, (factory) => {
     })
 
     it('should not call finalizer on fulfill', done => {
-        factory(Promise.resolve(), () => assert.fail()).then(done)
+        factory(Promise.resolve(),
+            () => assert.fail("unexpected error")).then(done)
     })
 
     it('should return cancellation promise', done => {
         const job = factory(createTask(1, 1))
-            .then(() => assert.fail(), assert.fail)
+            .then(
+                () => assert.fail("unexpected fulfillment"),
+                () => assert.fail("unexpected error"))
             .catch(done)
 
         const promise = job.cancel()
@@ -331,7 +324,9 @@ describeFactories(factories, (factory) => {
         }
 
         const job = factory(createTask(1, 1), finalizer)
-            .then(() => assert.fail(), assert.fail)
+            .then(
+                () => assert.fail("unexpected fulfillment"),
+                () => assert.fail("unexpected error"))
             .catch(done)
 
         job.cancel().catch(done)
@@ -350,7 +345,9 @@ describeFactories(factories, (factory) => {
         }
 
         const job = factory(createTask(10, 1), finalizer)
-            .then(() => assert.fail(), assert.fail)
+            .then(
+                () => assert.fail("unexpected fulfillment"),
+                () => assert.fail("unexpected error"))
             .catch(done)
 
         job.cancel().catch(done)
@@ -362,7 +359,7 @@ describeFactories(factories, (factory) => {
         }, 5)
     })
 
-    it('should call finalizer only after fulfill or reject', done => {
+    it('should call finalizer only after fulfill', done => {
         let promiseDone = false
         const finalizer = () => {
             assert.ok(promiseDone)
@@ -371,6 +368,26 @@ describeFactories(factories, (factory) => {
 
         const task = createTask(10, 1)
             .then(() => promiseDone = true)
+
+        const job = factory(task, finalizer)
+            .catch(done)
+
+        job.cancel().catch(done)
+    })
+
+    it('should call finalizer only after reject', done => {
+        let promiseDone = false
+        const finalizer = () => {
+            assert.ok(promiseDone)
+            done()
+        }
+
+        const task = createTask(10, 1)
+            .then(() => { throw new Error("test") })
+            .catch(err => {
+                promiseDone = true
+                throw err
+            })
 
         const job = factory(task, finalizer)
             .catch(done)
@@ -391,7 +408,9 @@ describeFactories(factories, (factory) => {
         }
 
         const job = factory(createTask(1, 1), finalizer)
-            .then(() => assert.fail(), assert.fail)
+            .then(
+                () => assert.fail("unexpected fulfillment"),
+                () => assert.fail("unexpected error"))
             .catch(done)
 
         job.cancel().catch(done)
@@ -411,10 +430,48 @@ describeFactories(factories, (factory) => {
         }
 
         const job = factory(createTask(4, 1), finalizer)
-            .then(() => fulfilled = true, assert.fail)
+            .then(() => fulfilled = true)
             .catch(done)
 
         setTimeout(() => job.cancel().catch(done), 10)
+    })
+
+    it('should handle cancellation result', done => {
+        const value = { id: 1 }
+        const finalizer = () => {
+            return value
+        }
+
+        const job = factory(createTask(4, 1), finalizer)
+            .then(() => createTask(4, 2))
+            .catch(done)
+
+        setTimeout(() => job.cancel()
+            .then(result => {
+                assert.equal(result, value)
+                done()
+            })
+            .catch(done), 15)
+    })
+
+
+    it('should handle cancellation result before fulfill', done => {
+        const value = { id: 1 }
+        const finalizer = () => {
+            return value
+        }
+
+        const job = factory(createTask(20, 1), finalizer)
+            .then(() => createTask(10, 2))
+            .then(() => assert.fail("unexpected fulfillment"))
+            .catch(done)
+
+        setTimeout(() => job.cancel()
+            .then(result => {
+                assert.equal(result, value)
+                done()
+            })
+            .catch(done), 4)
     })
 
     it('should handle cancellation rejection', done => {
@@ -423,9 +480,48 @@ describeFactories(factories, (factory) => {
         }
 
         const job = factory(createTask(4, 1), finalizer)
+            .then(() => createTask(4, 2))
             .catch(done)
 
-        setTimeout(() => job.cancel().catch(() => done()), 10)
+        setTimeout(() => job.cancel()
+            .then(() => done(new Error("Expected exit with error")))
+            .catch(() => done()
+            ), 15)
+    })
+
+    it('should handle cancellation rejection before fulfill', done => {
+        const finalizer = () => {
+            throw new Error("Test")
+        }
+
+        const job = factory(createTask(20, 1), finalizer)
+            .then(() => createTask(4, 2))
+            .then(() => assert.fail("unexpected fulfillment"))
+            .catch(done)
+
+        setTimeout(() => job.cancel()
+            .then(() => done(new Error("Expected exit with error")))
+            .catch(() => done()
+            ), 4)
+    })
+
+    it('should handle synchronous cancellation result', done => {
+        const value = { id: 1 }
+        const finalizer = () => {
+            return value
+        }
+
+        const job = factory(createTask(4, 1), finalizer)
+            .then(() => createTask(4, 2))
+            .then(() => assert.fail("unexpected fulfillment"))
+            .catch(done)
+
+        job.cancel()
+            .then(result => {
+                assert.equal(result, value)
+                done()
+            })
+            .catch(done)
     })
 
     it('should handle synchronous cancellation rejection', done => {
@@ -434,9 +530,12 @@ describeFactories(factories, (factory) => {
         }
 
         const job = factory(createTask(4, 1), finalizer)
+            .then(() => createTask(4, 2))
+            .then(() => assert.fail("unexpected fulfillment"))
             .catch(done)
 
         job.cancel()
+            .then(() => done(new Error("Expected exit with error")))
             .catch(() => done())
     })
 
@@ -457,7 +556,9 @@ describeFactories(factories, (factory) => {
             .then(() => createTask(10, value3))
             .catch(done)
 
-        setTimeout(() => job.cancel().catch(done), 15)
+        setTimeout(() => {
+            job.cancel().catch(done)
+        }, 15)
     })
 
     it('should call finalizer only with slice of results', done => {
