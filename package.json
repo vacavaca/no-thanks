@@ -1,0 +1,22 @@
+{
+  "name": "no-thanks",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "doc:prepare": "gitbook install",
+    "doc:build": "npm run doc:prepare && gitbook build",
+    "doc:serve": "npm run doc:prepare && gitbook serve",
+    "doc": "npm run doc:api && npm run doc:build",
+    "doc:clean": "rm -rf _book",
+    "lint": "eslint src",
+    "test": "mocha --recursive -t 300 -R spec test"
+  },
+  "author": "vacavaca <vacavaca@fastmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^4.19.1",
+    "gitbook-cli": "^2.3.3",
+    "mocha": "^5.2.0"
+  }
+}
