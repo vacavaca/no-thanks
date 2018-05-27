@@ -346,6 +346,20 @@ describe("cancellable", () => {
             .catch(done), 10)
     })
 
+    it('should chain cancellation result', done => {
+        const value = { id: 1 }
+        const finalizer = () => createTask(10, value)
+
+        const job = cancellable(async () => await createTask(4, 1), finalizer)()
+
+        setTimeout(() => job.cancel()
+            .then(result => {
+                assert.equal(result, value)
+                done()
+            })
+            .catch(done), 10)
+    })
+
     it('should handle cancellation result before fulfill', done => {
         const value = { id: 1 }
         const finalizer = () => {
@@ -447,7 +461,7 @@ describe("cancellable", () => {
 
         const job = cancellable(async grain => {
             try {
-                await grain(createTask(10, value1))
+                grain(value1)
                 await grain(createTask(10, value2))
                 await grain(createTask(10, value3))
             } catch (err) {
@@ -457,7 +471,54 @@ describe("cancellable", () => {
 
         setTimeout(() => {
             job.cancel().catch(done)
-        }, 15)
+        }, 5)
+    })
+
+    it('should call finalizer with result of top grain', done => {
+        const value1 = { id: 1 }
+
+        const finalizer = (arg1, ...rest) => {
+            assert.equal(arg1, value1)
+            assert.equal(rest.length, 0)
+            done()
+        }
+
+        const job = cancellable(async () => {
+            try {
+                return value1
+            } catch (err) {
+                done(err)
+            }
+        }, finalizer)()
+
+        setTimeout(() => {
+            job.cancel().catch(done)
+        }, 5)
+    })
+
+    it('should call finalizer with results of all grains', done => {
+        const value1 = { id: 1 }
+        const value2 = { id: 2 }
+
+        const finalizer = (arg1, arg2, ...rest) => {
+            assert.equal(arg1, value1)
+            assert.equal(arg2, value2)
+            assert.equal(rest.length, 0)
+            done()
+        }
+
+        const job = cancellable(async grain => {
+            try {
+                await grain(createTask(1, value1))
+                return value2
+            } catch (err) {
+                done(err)
+            }
+        }, finalizer)()
+
+        setTimeout(() => {
+            job.cancel().catch(done)
+        }, 5)
     })
 
     it('should call finalizer only with slice of results', done => {
@@ -473,7 +534,6 @@ describe("cancellable", () => {
             assert.equal(rest.length, 0)
             done()
         }
-
 
         const job = cancellable(async grain => {
             try {

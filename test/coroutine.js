@@ -312,6 +312,22 @@ describe("coroutine", () => {
             .catch(done), 10)
     })
 
+    it('should chain cancellation result', done => {
+        const value = { id: 1 }
+        const finalizer = () => createTask(10, value)
+
+        const job = coroutine(function* () {
+            yield createTask(4, 1)
+        }, finalizer)()
+
+        setTimeout(() => job.cancel()
+            .then(result => {
+                assert.equal(result, value)
+                done()
+            })
+            .catch(done), 10)
+    })
+
     it('should handle cancellation result before fulfill', done => {
         const value = { id: 1 }
         const finalizer = () => {
@@ -419,7 +435,7 @@ describe("coroutine", () => {
         const job = coroutine(function* () {
             try {
                 yield createTask(10, value1)
-                yield createTask(10, value2)
+                yield value2
                 yield createTask(10, value3)
             } catch (err) {
                 done(err)
@@ -431,6 +447,56 @@ describe("coroutine", () => {
         }, 15)
     })
 
+    it('should call finalizer with result of top grain', done => {
+        const value1 = { id: 1 }
+        const value2 = { id: 2 }
+
+        const finalizer = (arg1, arg2, ...rest) => {
+            assert.equal(arg1, value1)
+            assert.equal(arg2, value2)
+            assert.equal(rest.length, 0)
+            done()
+        }
+
+        const job = coroutine(function* () {
+            try {
+                yield value1
+                return value2
+            } catch (err) {
+                done(err)
+            }
+        }, finalizer)()
+
+        setTimeout(() => {
+            job.cancel().catch(done)
+        }, 15)
+    })
+
+    it(`should call finalizer with result of top grain \
+when fineGrained false`, done => {
+        const value1 = { id: 1 }
+        const value2 = { id: 2 }
+
+        const finalizer = (arg1, arg2, ...rest) => {
+            assert.equal(arg1, value1)
+            assert.equal(arg2, value2)
+            assert.equal(rest.length, 0)
+            done()
+        }
+
+        const job = coroutine(function* () {
+            try {
+                yield value1
+                return value2
+            } catch (err) {
+                done(err)
+            }
+        }, finalizer, false)()
+
+        setTimeout(() => {
+            job.cancel().catch(done)
+        }, 15)
+    })
 
     it('should call finalizer only with slice of results', done => {
         const value1 = { id: 1 }
@@ -445,7 +511,6 @@ describe("coroutine", () => {
             assert.equal(rest.length, 0)
             done()
         }
-
 
         const job = coroutine(function* () {
             try {

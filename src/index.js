@@ -11,9 +11,9 @@
  * @returns {*} next function or result
  */
 const curryInt = (f, nf, n = 0) => (...c) => {
-    n = n || c.length
-    if (n < nf) return (...a) =>
-        curryInt(f, nf, n + a.length).apply(null, c.concat(a))
+    let argNum = n || c.length
+    if (argNum < nf) return (...a) =>
+        curryInt(f, nf, argNum + a.length).apply(null, c.concat(a))
     else return f(...c)
 }
 
@@ -140,12 +140,16 @@ class CancellationContext {
 class CancellationChain {
     /**
      * @constructor
-     * @param {?(cancellationContext|Function)} ctx cancellation context
-     * to use
+     * @param {?(cancellationContext|Function)} ctxOrFinalizer finalizer or 
+     * cancellation context to use
      */
-    constructor(ctx) {
-        if (ctx instanceof Function) ctx = new CancellationContext(ctx)
-        else if (ctx == null) ctx = new CancellationContext()
+    constructor(ctxOrFinalizer) {
+        let ctx;
+        if (ctxOrFinalizer instanceof Function)
+            ctx = new CancellationContext(ctxOrFinalizer)
+        else if (ctxOrFinalizer == null)
+            ctx = new CancellationContext()
+        else ctx = ctxOrFinalizer
         this._ctx = ctx
 
         this._results = []
@@ -287,6 +291,84 @@ class CancellationChain {
 }
 
 /**
+ * Create "grain" from cancellation context and a value
+ * 
+ * curried
+ * @private
+ * @param {CancellationContext} ctx cancelabtion context
+ * @param {*} value value to wrap
+ * @returns {*} wrapped value
+ */
+const valueGrain = (ctx, value) => {
+    if (ctx != null && !ctx.canceled)
+        ctx.addResult(value)
+
+    return value
+}
+
+/**
+ * Create "grain" from cancellation context and a promise
+ * 
+ * @private
+ * @param {CancellationContext} ctx cancelabtion context
+ * @param {Promise} promise promise to wrap
+ * @returns {Promise} wrapped promise
+ */
+const promiseGrain = (ctx, promise) =>
+    new Promise((resolve, reject) => {
+        const noContext = ctx == null
+        if (noContext || !ctx.canceled) {
+            promise
+                .then(result => {
+                    if (!noContext) ctx.addResult(result)
+                    if (noContext || !ctx.canceled) resolve(result)
+                    else if (!noContext) ctx.finalize()
+
+                }).catch(err => {
+                    if (noContext || !ctx.canceled) reject(err)
+
+                })
+        } else if (!noContext) ctx.finalize()
+    })
+
+/**
+ * Create "grain" from cancellation context and a resolver
+ * 
+ * @private
+ * @param {CancellationContext} ctx cancelabtion context
+ * @param {Function} resolver resolver to wrap
+ * @returns {Promise} wrapped resolver
+ */
+const resolverGrain = (ctx, resolver) => (resolve, reject) => {
+    const noContext = ctx == null
+    if (noContext || !ctx.canceled) {
+        resolver(
+            result => {
+                if (!noContext) ctx.addResult(result)
+                if (noContext || !ctx.canceled) resolve(result)
+                else if (!noContext) ctx.finalize()
+
+            },
+            err => {
+                if (noContext || !ctx.canceled) reject(err)
+
+            })
+    } else if (!noContext) ctx.finalize()
+}
+
+
+/**
+ * Create "grain" from cancellation context and an arbitrary value
+ * 
+ * curried
+ * @private
+ * @param {CancellationContext} ctx cancelabtion context
+ * @param {*} value value to wrap
+ */
+const grain = curry((ctx, value) =>
+    (value instanceof Promise ? promiseGrain : valueGrain)(ctx, value))
+
+/**
  * Cancellable promise - Promise that can be canceled
  * @alias module:no-thanks
  */
@@ -294,22 +376,29 @@ class CancellablePromise extends Promise {
     /**
      * @constructor
      * @param {Function} resolver promise resolver
-     * @param {?(Function|CancellationContext)} ctx cancellation context
-     * or finalizer to use. If nothing was provided 
+     * @param {?(Function|CancellationContext)} ctxOrFinalizer  finalizer or 
+     * cancellation context to use. If nothing was provided 
      * then a new context will be created
      */
-    constructor(resolver, ctx = null) {
-        if (resolver instanceof Promise) super(resolver.then.bind(resolver))
-        else if (resolver instanceof Function) super(resolver)
+    constructor(resolver, ctxOrFinalizer = null) {
+        let ctx;
+        if (ctxOrFinalizer instanceof Function)
+            ctx = new CancellationChain(ctxOrFinalizer)
+        else if (ctxOrFinalizer instanceof CancellationChain)
+            ctx = ctxOrFinalizer
+        else if (ctxOrFinalizer == null)
+            ctx = new CancellationChain()
+        else throw new Error(`\
+Unrecognized type of the second argument of the CacnellablePromise constructor`)
+
+        if (resolver instanceof Promise)
+            super(grain(ctx, resolver).then.bind(resolver))
+        else if (resolver instanceof Function)
+            super(resolverGrain(ctx, resolver))
         else throw new Error(`\
 Resolver must be either a function or a Promise. \
 Probably the function provided to the cancelable(...) is not an AsyncFunction`)
 
-        if (ctx instanceof Function) ctx = new CancellationChain(ctx)
-        else if (ctx == null) ctx = new CancellationChain()
-        else if (!(ctx instanceof CancellationChain))
-            throw new Error(`\
-Unrecognized type of the second argument of the CacnellablePromise constructor`)
 
         this._ctx = ctx
     }
@@ -318,9 +407,11 @@ Unrecognized type of the second argument of the CacnellablePromise constructor`)
      * @inheritdoc
      */
     then(onFulfill, onReject) {
-        onFulfill = this._wrapOnFulfillHandler(onFulfill)
+        const ctx = this._getContext()
+        const nextCtx = ctx != null ? ctx.next() : null
+        onFulfill = this._wrapOnFulfillHandler(onFulfill, nextCtx)
         onReject = this._wrapOnRejectHandler(onReject)
-        return this._next(super.then(onFulfill, onReject))
+        return this._next(super.then(onFulfill, onReject), nextCtx)
     }
 
     /**
@@ -328,15 +419,9 @@ Unrecognized type of the second argument of the CacnellablePromise constructor`)
      */
     catch(onReject) {
         onReject = this._wrapOnRejectHandler(onReject)
-        return this._next(super.catch(onReject))
-    }
-
-    /**
-     * @inheritdoc
-     */
-    finaly(onFinally) {
-        onFinally = this._wrapOnFinallyHandler(onFinally)
-        return this._next(super.finally(onFinally))
+        const ctx = this._getContext()
+        const nextCtx = ctx != null ? ctx.next() : null
+        return this._next(super.catch(onReject), nextCtx)
     }
 
     /**
@@ -400,11 +485,11 @@ Unrecognized type of the second argument of the CacnellablePromise constructor`)
      * 
      * @private
      * @param {CancellablePromise} promise promise
+     * @param {CancellationChain} nextCtx cancellation context chain to use
      * @returns {CancellablePromise} provided promise
      */
-    _next(promise) {
-        const ctx = this._getContext()
-        promise._setContext(ctx != null ? ctx.next() : null)
+    _next(promise, nextCtx) {
+        promise._setContext(nextCtx)
         return promise
     }
 
@@ -413,18 +498,23 @@ Unrecognized type of the second argument of the CacnellablePromise constructor`)
      * 
      * @private
      * @param {Function} handler fulfillment handler
+     * @param {CancellationChain} nextCtx cancellation context chain to use
      * @returns {Function} wrapped fulfillment handler
      */
-    _wrapOnFulfillHandler(handler) {
+    _wrapOnFulfillHandler(handler, nextCtx) {
         return handler != null ? value => {
             const ctx = this._getContext()
             const noContext = ctx == null
-            if (!noContext) ctx.addResult(value)
 
             if (noContext || !ctx.canceled) {
                 if (handler == null) return
                 const next = handler(value)
-                return next
+                if (next instanceof Promise) return grain(nextCtx, next)
+                else {
+                    if (nextCtx != null && !nextCtx.canceled)
+                        nextCtx.addResult(next)
+                    return next
+                }
             } else if (!noContext) ctx.finalize()
         } : handler
     }
@@ -483,30 +573,6 @@ const patch = curry((ctx, promise) =>
     new CancellablePromise(promise, ctx))
 
 /**
- * Create "grain" from cancellation context and promise
- * 
- * curried
- * @private
- * @param {CancellationContext} ctx cancelabtion context
- */
-const grain = curry((ctx, promise) =>
-    new Promise((resolve, reject) => {
-        const noContext = ctx == null
-        if (noContext || !ctx.canceled) {
-            promise
-                .then(result => {
-                    if (!noContext) ctx.addResult(result)
-                    if (noContext || !ctx.canceled) resolve(result)
-                    else if (!noContext) ctx.finalize()
-
-                }).catch(err => {
-                    if (noContext || !ctx.canceled) reject(err)
-
-                })
-        } else if (!noContext) ctx.finalize()
-    }))
-
-/**
  * Wrap any type task, using the given wrapper
  * 
  * @private
@@ -550,13 +616,13 @@ const granulate = (task, fineGrained, wrapper) => {
  * Create cancellable task
  * 
  * @alias module:no-thanks
- * @param {(Promise|AsyncFunction|Function)} task task to make cancellable
+ * @param {(Promise|AsyncFunction)} task task to make cancellable
  * @param {?Function} finalizer finalizer to call after cancel
  * @param {?boolean} fineGrained supply "grain" function to the 
- * given task, if the task has a type of Function
+ * given task, if the task has a type of AsyncFunction
  * @returns {CancellablePromise} cancellable promise
  */
-const cancellable = (task, finalizer = doNothing, fineGrained = true) =>
+const cancellable = (task, finalizer = null, fineGrained = true) =>
     !(task instanceof CancellablePromise)
         ? granulate(task, fineGrained, createTopGrain => {
             const ctx = new CancellationChain(finalizer)
@@ -582,10 +648,15 @@ const runIterator = (ctx, iterator) => {
         const { value, done } = iterator.next()
         if (!done) {
             if (value instanceof Promise) return value.then(result => {
-                if (ctx != null) ctx.addResult(result)
+                if (ctx != null && !ctx.canceled)
+                    ctx.addResult(result)
                 return runIterator(ctx, iterator)
             })
-            else return runIterator(iterator)
+            else {
+                if (ctx != null && !ctx.canceled)
+                    ctx.addResult(value)
+                return runIterator(ctx, iterator)
+            }
         } else return Promise.resolve(value)
     } catch (err) {
         return Promise.reject(err)
@@ -609,11 +680,20 @@ const runFineGrainedIterator = (ctx, iterator) => {
             if (noContext || !ctx.canceled) {
                 if (!done) {
                     if (value instanceof Promise) return value.then(result => {
-                        if (ctx != null) ctx.addResult(result)
+                        if (ctx != null && !ctx.canceled)
+                            ctx.addResult(result)
                         return runFineGrainedIterator(ctx, iterator)
                     })
-                    else return runFineGrainedIterator(ctx, iterator)
-                } else return Promise.resolve(value)
+                    else {
+                        if (ctx != null && !ctx.canceled)
+                            ctx.addResult(value)
+                        return runFineGrainedIterator(ctx, iterator)
+                    }
+                } else {
+                    // if (ctx != null && !ctx.canceled)
+                    // ctx.addResult(value)
+                    return Promise.resolve(value)
+                }
             } else if (!noContext) ctx.finalize()
         } catch (err) {
             return Promise.reject(err)
@@ -639,11 +719,11 @@ The function provided to the coroutine is not a Generator Function`)
 
         return fineGrained
             ? runFineGrainedIterator(ctx, iterator)
-            : grain(ctx, runIterator(ctx, iterator))
+            : runIterator(ctx, iterator)
     })
 
 /**
- * Creates cancellable promise from generator that yields other promises
+ * Create cancellable promise from generator that yields other promises
  * 
  * @alias module:no-thanks
  * @param {Generator} generator generator to make cancellable
@@ -651,7 +731,7 @@ The function provided to the coroutine is not a Generator Function`)
  * @param {?boolean} fineGrained stop iteration on cancel or not
  * @returns {CancellablePromise} cancellable promise
  */
-const coroutine = (generator, finalizer = doNothing, fineGrained = true) =>
+const coroutine = (generator, finalizer = null, fineGrained = true) =>
     granulateGenerator(generator, fineGrained, createTopGrain => {
         const ctx = new CancellationChain(finalizer)
 

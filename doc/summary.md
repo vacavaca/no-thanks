@@ -1,7 +1,5 @@
 # Table of content 
-  * [Examples](examples.md)
-    * [Cancellable Promise](examples.mdcancellablepromise)
-  * [API Reference](api.md)
-    * [cancellable](reference/cancellable.md)
-    * [coroutine](reference/coroutine.md)
-    * [CancellablePromise](reference/cancellable-promise.md)
+  * [Recipes](recipes.md)
+    * [Network Request](recipes.md#network-request)
+    * [Reading Large File](recipes.md#reading-large-file)
+  * [API Reference](reference.md)

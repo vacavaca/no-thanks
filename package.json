@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "doc:prepare": "gitbook install",
-    "doc:readme": "cp README.md doc/intro.md",
+    "doc:readme": "sed 's/(\\/\\?doc\\//(\\//g' README.md > doc/intro.md",
     "doc:build": "gitbook build",
     "doc:serve": "gitbook serve",
     "doc": "npm run doc:api && npm run doc:build",
@@ -13,7 +13,8 @@
     "lint:src": "eslint src",
     "lint:test": "eslint test",
     "lint": "npm run lint:src && npm run lint:test",
-    "test": "mocha --recursive -t 300 -R spec test"
+    "test": "mocha --recursive -t 300 -R spec test",
+    "check": "npm run test && npm run lint"
   },
   "author": "vacavaca <vacavaca@fastmail.com>",
   "license": "MIT",

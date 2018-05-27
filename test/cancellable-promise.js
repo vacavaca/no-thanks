@@ -161,7 +161,7 @@ describeFactories(factories, (factory) => {
         job.cancel()
 
         endsWith(
-            () => log.includes('done task') && !log.includes('then task'),
+            () => log.includes('done task'),
             20, "Promise isn't done or fulfilled")
             .then(() => {
                 assert.deepEqual(log, [
@@ -524,6 +524,23 @@ describeFactories(factories, (factory) => {
             .catch(done)
     })
 
+    it('should chain cancellation result', done => {
+        const value = { id: 1 }
+        const finalizer = () => createTask(10, value)
+
+        const job = factory(createTask(4, 1), finalizer)
+            .then(() => createTask(4, 2))
+            .then(() => assert.fail("unexpected fulfillment"))
+            .catch(done)
+
+        job.cancel()
+            .then(result => {
+                assert.equal(result, value)
+                done()
+            })
+            .catch(done)
+    })
+
     it('should handle synchronous cancellation rejection', done => {
         const finalizer = () => {
             throw new Error("Test")
@@ -538,7 +555,7 @@ describeFactories(factories, (factory) => {
             .then(() => done(new Error("Expected exit with error")))
             .catch(() => done())
     })
-
+    
     it('should call finalizer with results of grains', done => {
         const value1 = { id: 1 }
         const value2 = { id: 2 }
@@ -554,6 +571,23 @@ describeFactories(factories, (factory) => {
         const job = factory(createTask(10, value1), finalizer)
             .then(() => createTask(10, value2))
             .then(() => createTask(10, value3))
+            .catch(done)
+
+        setTimeout(() => {
+            job.cancel().catch(done)
+        }, 15)
+    })
+
+    it('should call finalizer with result of the top grain', done => {
+        const value1 = { id: 1 }
+
+        const finalizer = (arg1, ...rest) => {
+            assert.equal(arg1, value1)
+            assert.equal(rest.length, 0)
+            done()
+        }
+
+        const job = factory(createTask(1, value1), finalizer)
             .catch(done)
 
         setTimeout(() => {
