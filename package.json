@@ -1,8 +1,8 @@
 {
   "name": "no-thanks",
   "version": "0.0.1",
-  "description": "",
-  "main": "index.js",
+  "description": "Fine-Grained cancellation primitives",
+  "main": "dist/index.min.js",
   "scripts": {
     "doc:prepare": "gitbook install",
     "doc:readme": "sed 's/(\\/\\?doc\\//(\\//g' README.md > doc/intro.md",
@@ -14,13 +14,34 @@
     "lint:test": "eslint test",
     "lint": "npm run lint:src && npm run lint:test",
     "test": "mocha --recursive -t 300 -R spec test",
-    "check": "npm run test && npm run lint"
+    "check": "npm run test && npm run lint",
+    "build:uglify": "uglifyjs -m toplevel src/index.js > dist/index.src.js",
+    "build:umd": "umd noThanks -c dist/index.src.js > dist/index.min.js",
+    "build:source": "cp src/index.js dist/",
+    "build:post-clean": "rm dist/index.src.js",
+    "build": "npm run check && npm run build:uglify && npm run build:umd && npm run build:source && npm run build:post-clean"
   },
   "author": "vacavaca <vacavaca@fastmail.com>",
+  "bugs": {
+    "url": "https://github.com/vacavaca/no-thanks/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vacavaca/no-thanks.git"
+  },
+  "keywords": [
+    "nothanks",
+    "promise",
+    "cancellable",
+    "cancel",
+    "concurrency"
+  ],
   "license": "MIT",
   "devDependencies": {
     "eslint": "^4.19.1",
     "gitbook-cli": "^2.3.2",
-    "mocha": "^5.2.0"
+    "mocha": "^5.2.0",
+    "uglify-es": "^3.3.9",
+    "umd": "^3.0.3"
   }
 }

@@ -180,7 +180,7 @@ Also, take a look at the [test directory](https://github.com/vacavaca/no-thanks/
 
 MIT
 
-See [COPYING](https://github.com/vacavaca/no-thanks/blob/master/COPYING) to see the full text.
+See [LICENSE](https://github.com/vacavaca/no-thanks/blob/master/LICENSE) to see the full text.
 
 ---
 
