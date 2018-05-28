@@ -1,6 +1,6 @@
 const assert = require('assert')
 
-const { CancellablePromise, coroutine } = require('../src')
+const { CancellablePromise, interruptible } = require('../../src')
 const { endsWith, patchItToCheckUnhandledRejections } = require('./util')
 
 const createTask = (timeout, name, log) => new Promise(resolve => {
@@ -13,29 +13,40 @@ const createTask = (timeout, name, log) => new Promise(resolve => {
     }, timeout)
 })
 
+
 global.it = patchItToCheckUnhandledRejections()
-describe("coroutine", () => {
-    it('should pass arguments', done => {
+describe("interruptible", () => {
+    it('should provide fine-grained arg', done => {
         const value1 = { id: 1 }
         const value2 = { id: 2 }
-        coroutine(function* (arg1, arg2, arg3) {
+        interruptible(async (grain, arg1, arg2, arg3) => {
+            assert.ok(grain instanceof Function)
             assert.equal(arg1, value1)
             assert.equal(arg2, value2)
             assert.equal(arg3, undefined)
             done()
+        })(value1, value2)
+    })
 
-            yield 42
+    it('should not provide fine-grained arg if disabled', done => {
+        const value1 = { id: 1 }
+        const value2 = { id: 2 }
+        interruptible(async (arg1, arg2, arg3) => {
+            assert.equal(arg1, value1)
+            assert.equal(arg2, value2)
+            assert.equal(arg3, undefined)
+            done()
         }, null, false)(value1, value2)
     })
 
     it('should cancel fine-grained', done => {
         const log = []
         const task1 = createTask(4, 1, log)
-        const job = coroutine(function* () {
+        const job = interruptible(async (grain) => {
             try {
-                yield task1
-                yield createTask(4, 2, log)
-                yield createTask(4, 3, log)
+                await task1
+                await grain(createTask(4, 2, log))
+                await grain(createTask(4, 3, log))
                 log.push('then')
             } catch (err) {
                 done(err)
@@ -59,14 +70,45 @@ describe("coroutine", () => {
     })
 
 
+    it('should not cancel fine-grained if not used', done => {
+        const log = []
+        const task1 = createTask(4, 1, log)
+        const job = interruptible(async () => {
+            try {
+                await task1
+                await createTask(4, 2, log)
+                await createTask(4, 3, log)
+            } catch (err) {
+                done(err)
+            }
+        })().then(() => log.push('then'))
+
+        setTimeout(() => job.cancel(), 5)
+
+        endsWith(
+            () => (log.includes('done 2') && !log.includes('then')),
+            16, "Promise isn't done or fulfilled")
+            .then(() => {
+                assert.deepEqual(log, [
+                    'start 1',
+                    'done 1',
+                    'start 2',
+                    'done 2',
+                    'start 3',
+                    'done 3'
+                ])
+            })
+            .then(done, done)
+    })
+
     it('should not cancel fine-grained if disabled', done => {
         const log = []
         const task1 = createTask(4, 1, log)
-        const job = coroutine(function* () {
+        const job = interruptible(async () => {
             try {
-                yield task1
-                yield createTask(4, 2, log)
-                yield createTask(4, 3, log)
+                await task1
+                await createTask(4, 2, log)
+                await createTask(4, 3, log)
             } catch (err) {
                 done(err)
             }
@@ -91,7 +133,7 @@ describe("coroutine", () => {
     })
 
     it('should accept finalizer', done => {
-        const promise = coroutine(function* () { }, () => { })()
+        const promise = interruptible(async () => { }, () => { })()
         assert(promise instanceof CancellablePromise)
         assert(promise instanceof Promise)
         assert(promise.then instanceof Function)
@@ -112,15 +154,14 @@ describe("coroutine", () => {
     })
 
     it('should not call finalizer on fulfill', done => {
-        coroutine(function* () { }, () => assert.fail())().then(done)
+        interruptible(async () => { }, () => assert.fail())().then(done)
     })
 
-
     it('should return cancellation promise', done => {
-        const job = coroutine(function* () {
+        const job = interruptible(async () => {
             try {
-                yield createTask(1, 1)
-                assert.fail("unexpected exit")
+                await createTask(1, 1)
+                assert.fail("unexpected fulfillment")
             } catch (err) {
                 done(err)
             }
@@ -146,15 +187,16 @@ describe("coroutine", () => {
         done()
     })
 
+
     it('should call finalizer on cancel', done => {
         const finalizer = () => {
             setTimeout(() => done(), 4)
         }
 
-        const job = coroutine(function* () {
+        const job = interruptible(async (grain) => {
             try {
-                yield createTask(4, 4)
-                assert.fail("unexpected exit")
+                await grain(createTask(4, 4))
+                assert.fail("unexpected fulfillment")
             } catch (err) {
                 done(err)
             }
@@ -162,7 +204,6 @@ describe("coroutine", () => {
 
         job.cancel().catch(done)
     })
-
 
     it('should call finalizer once on cancel', done => {
         let finalizerCalls = 0
@@ -176,10 +217,10 @@ describe("coroutine", () => {
             }, 15)
         }
 
-        const job = coroutine(function* () {
+        const job = interruptible(async (grain) => {
             try {
-                yield createTask(4, 4)
-                assert.fail("unexpected exit")
+                await grain(createTask(4, 4))
+                assert.fail("unexpected fulfillment")
             } catch (err) {
                 done(err)
             }
@@ -194,20 +235,19 @@ describe("coroutine", () => {
         }, 5)
     })
 
-
-    it('should call finalizer only after fulfill', done => {
+    it('should call finalizer immediatelly before fulfill', done => {
         let promiseDone = false
         const finalizer = () => {
-            assert.ok(promiseDone)
+            assert.ok(!promiseDone)
             done()
         }
 
         const task = createTask(10, 1)
             .then(() => promiseDone = true)
 
-        const job = coroutine(function* () {
+        const job = interruptible(async () => {
             try {
-                yield task
+                await task
             } catch (err) {
                 done(err)
             }
@@ -216,11 +256,10 @@ describe("coroutine", () => {
         job.cancel().catch(done)
     })
 
-
-    it('should call finalizer only after reject', done => {
+    it('should call finalizer immediatelly before reject', done => {
         let promiseDone = false
         const finalizer = () => {
-            assert.ok(promiseDone)
+            assert.ok(!promiseDone)
             done()
         }
 
@@ -231,9 +270,9 @@ describe("coroutine", () => {
                 throw err
             })
 
-        const job = coroutine(function* () {
+        const job = interruptible(async () => {
             try {
-                yield task
+                await task
             } catch (err) {
                 // ignore
             }
@@ -241,7 +280,6 @@ describe("coroutine", () => {
 
         job.cancel().catch(done)
     })
-
 
     it('should call finalizer once on cancel after fulfill', done => {
         let finalizerCalls = 0
@@ -255,10 +293,10 @@ describe("coroutine", () => {
             }, 15)
         }
 
-        const job = coroutine(function* () {
+        const job = interruptible(async (grain) => {
             try {
-                yield createTask(1, 1)
-                assert.fail("unexpected exit")
+                await grain(createTask(1, 1))
+                assert.fail("unexpected fulfillment")
             } catch (err) {
                 done(err)
             }
@@ -273,7 +311,6 @@ describe("coroutine", () => {
         }, 5)
     })
 
-
     it('should call finalizer even if fulfilled', done => {
         let fulfilled = false
         const finalizer = () => {
@@ -281,9 +318,9 @@ describe("coroutine", () => {
             done()
         }
 
-        const job = coroutine(function* () {
+        const job = interruptible(async () => {
             try {
-                yield createTask(4, 1)
+                await createTask(4, 1)
                 fulfilled = true
             } catch (err) {
                 done(err)
@@ -293,16 +330,14 @@ describe("coroutine", () => {
         setTimeout(() => job.cancel().catch(done), 10)
     })
 
-
     it('should handle cancellation result', done => {
         const value = { id: 1 }
         const finalizer = () => {
             return value
         }
 
-        const job = coroutine(function* () {
-            yield createTask(4, 1)
-        }, finalizer)()
+        const job = interruptible(async () =>
+            await createTask(4, 1), finalizer)()
 
         setTimeout(() => job.cancel()
             .then(result => {
@@ -316,9 +351,8 @@ describe("coroutine", () => {
         const value = { id: 1 }
         const finalizer = () => createTask(10, value)
 
-        const job = coroutine(function* () {
-            yield createTask(4, 1)
-        }, finalizer)()
+        const job = interruptible(async () =>
+            await createTask(4, 1), finalizer)()
 
         setTimeout(() => job.cancel()
             .then(result => {
@@ -334,10 +368,10 @@ describe("coroutine", () => {
             return value
         }
 
-        const job = coroutine(function* () {
+        const job = interruptible(async grain => {
             try {
-                yield createTask(20, 1)
-                yield createTask(10, 1)
+                await grain(createTask(20, 1))
+                await grain(createTask(10, 1))
                 assert.fail("unexpected fulfillment")
             } catch (err) {
                 done(err)
@@ -357,9 +391,8 @@ describe("coroutine", () => {
             throw new Error("Test")
         }
 
-        const job = coroutine(function* () {
-            yield createTask(4, 1)
-        }, finalizer)()
+        const job = interruptible(async () =>
+            await createTask(4, 1), finalizer)()
 
         setTimeout(() => job.cancel()
             .then(() => done(new Error("Expected exit with error")))
@@ -372,8 +405,8 @@ describe("coroutine", () => {
             throw new Error("Test")
         }
 
-        const job = coroutine(function* () {
-            yield createTask(20, 1)
+        const job = interruptible(async (grain) => {
+            await grain(createTask(20, 1))
             assert.fail("unexpected fulfillment")
         }, finalizer)()
 
@@ -383,16 +416,15 @@ describe("coroutine", () => {
             ), 4)
     })
 
-
     it('should handle synchronous cancellation result', done => {
         const value = { id: 1 }
         const finalizer = () => {
             return value
         }
 
-        const job = coroutine(function* () {
-            yield createTask(4, 1)
-            assert.fail('unexpected fulfillment')
+        const job = interruptible(async (grain) => {
+            await grain(createTask(4, 1))
+            assert.fail("unexpected fulfillment")
         }, finalizer)()
 
         job.cancel()
@@ -403,15 +435,14 @@ describe("coroutine", () => {
             .catch(done)
     })
 
-
     it('should handle synchronous cancellation rejection', done => {
         const finalizer = () => {
             throw new Error("Test")
         }
 
-        const job = coroutine(function* () {
-            yield createTask(4, 1)
-            assert.fail('unexpected fulfillment')
+        const job = interruptible(async (grain) => {
+            await grain(createTask(4, 1))
+            assert.fail("unexpected fulfillment")
         }, finalizer)()
 
         job.cancel()
@@ -419,24 +450,22 @@ describe("coroutine", () => {
             .catch(() => done())
     })
 
-
     it('should call finalizer with results of grains', done => {
         const value1 = { id: 1 }
         const value2 = { id: 2 }
         const value3 = { id: 3 }
 
-        const finalizer = (arg1, arg2, ...rest) => {
+        const finalizer = (arg1, ...rest) => {
             assert.equal(arg1, value1)
-            assert.equal(arg2, value2)
             assert.equal(rest.length, 0)
             done()
         }
 
-        const job = coroutine(function* () {
+        const job = interruptible(async grain => {
             try {
-                yield createTask(10, value1)
-                yield value2
-                yield createTask(10, value3)
+                grain(value1)
+                await grain(createTask(10, value2))
+                await grain(createTask(10, value3))
             } catch (err) {
                 done(err)
             }
@@ -444,24 +473,21 @@ describe("coroutine", () => {
 
         setTimeout(() => {
             job.cancel().catch(done)
-        }, 15)
+        }, 5)
     })
 
     it('should call finalizer with result of top grain', done => {
         const value1 = { id: 1 }
-        const value2 = { id: 2 }
 
-        const finalizer = (arg1, arg2, ...rest) => {
+        const finalizer = (arg1, ...rest) => {
             assert.equal(arg1, value1)
-            assert.equal(arg2, value2)
             assert.equal(rest.length, 0)
             done()
         }
 
-        const job = coroutine(function* () {
+        const job = interruptible(async () => {
             try {
-                yield value1
-                return value2
+                return value1
             } catch (err) {
                 done(err)
             }
@@ -469,11 +495,10 @@ describe("coroutine", () => {
 
         setTimeout(() => {
             job.cancel().catch(done)
-        }, 15)
+        }, 5)
     })
 
-    it(`should call finalizer with result of top grain \
-when fineGrained false`, done => {
+    it('should call finalizer with results of all grains', done => {
         const value1 = { id: 1 }
         const value2 = { id: 2 }
 
@@ -484,18 +509,18 @@ when fineGrained false`, done => {
             done()
         }
 
-        const job = coroutine(function* () {
+        const job = interruptible(async grain => {
             try {
-                yield value1
+                await grain(createTask(1, value1))
                 return value2
             } catch (err) {
                 done(err)
             }
-        }, finalizer, false)()
+        }, finalizer)()
 
         setTimeout(() => {
             job.cancel().catch(done)
-        }, 15)
+        }, 5)
     })
 
     it('should call finalizer only with slice of results', done => {
@@ -512,10 +537,10 @@ when fineGrained false`, done => {
             done()
         }
 
-        const job = coroutine(function* () {
+        const job = interruptible(async grain => {
             try {
-                yield createTask(1, value1)
-                yield createTask(1, value2)
+                await grain(createTask(1, value1))
+                await grain(createTask(1, value2))
                 return value3
             } catch (err) {
                 done(err)
@@ -541,9 +566,9 @@ when fineGrained false`, done => {
             done()
         }
 
-        const job = coroutine(function* () {
-            yield createTask(10, value1)
-            yield createTask(10, value2)
+        const job = interruptible(async grain => {
+            await grain(createTask(10, value1))
+            await grain(createTask(10, value2))
         }, finalizer)()
 
         job.then(() => createTask(15, value3))

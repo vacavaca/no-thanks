@@ -4,25 +4,28 @@
 
 Make a cancellable network request
 
+**interruptible** method will be used because `fetch` interface supports immediate cancellation of the request
+
 Using `fetch` and `AbortController`
 
 ```js
-const { cancellable } = require('no-thanks')
+const { interruptible, compose, decompose } = require('no-thanks')
 
 const controller = new AbortController()
 
-const request = cancellable(fetch({
-    signal: controller.signal,
-    /* other request options */
-}), controller.abort)
+const request = interruptible(async () =>
+    compose(fetch({
+        signal: controller.signal,
+        /* other request options */
+    })), () => controller.abort())().then(decompose)
 ```
 
 or without closure
 
 ```js
-const { cancellable } = require('no-thanks')
+const { interruptible } = require('no-thanks')
 
-const request = cancellable(async grain => {
+const request = interruptible(async grain => {
     const controller = grain(new AbortController())
     return await fetch({
         signal: controller.signal,
@@ -37,12 +40,12 @@ const request = cancellable(async grain => {
 It's the same request but it takes options as an argument
 
 ```js
-const { cancellable } = require('no-thanks')
+const { interruptible } = require('no-thanks')
 
-const request = cancellable(async (grain, url, options = {}) => {
+const request = interruptible(async (grain, url, options = {}) => {
     const controller = grain(new AbortController())
     return await fetch(url, {
-        ...options
+        ...options,
         signal: controller.signal,
     })
 }, controller => controller != null && controller.abort())
@@ -58,11 +61,26 @@ const getCurrentBitcoinPrice = () => request('https://api.bitfinex.com/v1/pubtic
 A few more examples of cancellable requests using **jQuery.ajax** with jquery >= 1.5.1
 
 ```js
-const { cancellable } = require('no-thanks')
+const { interruptible } = require('no-thanks')
 
-const request = cancellable($.ajax({
-    /* request options */
-}), request => request != null && request.abort())
+const request = interruptible(async grain => {
+    const request = grain($.ajax({
+        /* request options */
+    }))
+    return request.promise()
+}, request => {
+    if (request != null) {
+        return request.abort()
+            .catch(err => {
+                if (err.statusText === 'abort')
+                    return;
+                
+                throw err
+            })
+    }
+})
+
+// request().cancel()
 ```
 
 Using **jQuery.ajax** with jquery <= 1.5
@@ -70,13 +88,16 @@ Using **jQuery.ajax** with jquery <= 1.5
 ```js
 const { cancellable } = require('no-thanks')
 
-const request = cancellable(async grain => {
+const request = interruptible(async grain => {
     return await new Promise((resolve, reject) => grain($.ajax({
         /* request options */
         success: resolve,
-        error: (jqXhr, status, errorMessage) => reject(new Error(errorMessage))
+        error: (jqXhr, status, errorMessage) => {
+            if (status === 'abort') resolve(jqXhr)
+            else reject(new Error(errorMessage))
+        }
     })))
-}, request => request != null && request.abort())
+}, request => { request != null && request.abort() })
 ```
 
 ## Reading Large File

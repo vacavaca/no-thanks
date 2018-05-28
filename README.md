@@ -1,20 +1,22 @@
 # No Thanks!
 ### Fine-grained cancelation for promises
 
-The **no-thanks** package provides a set of **utilities for promise cancellation** that can be used as a **primitives** to compose more complex pipelines with the ability to stop execution at any time
+The **no-thanks** package provides a set of **utilities to cancel a promise** that can be used as a **primitives** to compose more complex pipelines with the ability to stop execution at any time
 
 `npm i --save no-thanks`
+
+20 kB source, 5.8 kB minified, **1.8 kB** gzipped
 
 Quick links:
  * [Documentation](doc/)
  * [API Reference](doc/reference.md)
  * [Release Notes](https://github.com/vacavaca/no-thanks/releases)
 
-In case the website is down all the documentation can be found in the [doc directory](https://github.com/vacavaca/no-thanks/tree/master/doc) of the source repository 
+In case the website is down all the documentation can be found in the [doc directory](doc) of the source repository 
 
 ## Motivation
 
-It's a very common situation when a javascript program has to run some expensive or long-running task and then the result of the task or the task itself is no longer needed.
+It's a very common situation when a javascript program has to run some expensive or long-running task and then the result of the task or the task itself is no longer needed. 
 
 As an example, an application may start a **network request** (or a group of requests) and then the user clicks "Cancel" button or changes some parameters so we need to abort the request and drop the result.
 
@@ -28,6 +30,8 @@ This library provides such tools, along with a cancellation callbacks to free up
 ```js
 const { CancellablePromise, cancellable, coroutine } = require('no-thanks')
 ```
+
+If the package is included in a browser with `<script>` tag, it can be found at `window.noThanks` key
 
 ### Basic Usage
 
@@ -136,11 +140,11 @@ const job = cancellable(async (grain, ...args) => {
 })
 
 // run the job
-const cancellable = job('the', 'answer', 'is', 42)
+const running = job('the', 'answer', 'is', 42)
 
 /* ... */
 
-cancellable.cancel()
+running.cancel()
 ```
 
 
@@ -165,16 +169,69 @@ const job = coroutine(function* (...args) {
     // prints: the answer is 42
 })
 
-const cancellable = job('the', 'answer', 'is', 42)
+const running = job('the', 'answer', 'is', 42)
 
 /* ... */
 
-cancellable.cancel()
+running.cancel()
 ```
 
-That was the last method of the public API, you can find more examples and recipes [here](doc/recipes.md)
+### Interruptible
 
-Also, take a look at the [test directory](https://github.com/vacavaca/no-thanks/tree/master/test), it contains **a lot** of examples of different semantics of the library methods
+All the functions described above cancel a task and run finalizer only after the currently executing task is fulfilled or rejected, but sometimes it's necessary to **interrupt a task immediately** for example, when a network request was canceled by the user it should be aborted before the response arrives.
+
+For that reason the **interruptible** method can be used:
+
+> **interruptible** *(**task**: AsyncFunction|Promise, **finalizer**: ?Function = null, **fineGrained**: boolean = true)* => `CancellablePromise`
+
+```js
+const job = interruptible(async (grain, ...args) => {
+    await grain(task1)
+    await grain(task2)
+    await grain(task3)
+
+    console.log(...agrs)
+    /// prints: the answer is 42
+})
+
+// run the job
+const running = job('the', 'answer', 'is', 42)
+
+/* ... */
+
+running.cancel()
+```
+
+The interface of this method is identical to the [cancellable](doc/reference.md#cancellable) method, except it runs finalize immediatelly after `cancel()`
+
+**Note** Use **interruptible** with care and only if your tasks (*grains*) support immediate abortion, in other case the state of the current task will be unpredictable.
+
+Check out [network request](doc/recipes.md#network-request) recipe for more real-life example
+
+### Compose & Decompose
+
+There are two more utility functions in the public API
+
+**compose** *(**promise**: Promise|Object)* => `Promise`
+
+and
+
+**decompose** *(**promise**: Object)* => `Promise`
+
+They are used to avoid automatic chaining when returning `Promise`s from promise resolvers and async functions.
+
+```js
+
+(async () => compose(Promise.resolve(42)))()
+    .then(decompose)
+    .then(value => value === 42)
+```
+
+---
+
+More examples and recipes can be found [here](doc/recipes.md)
+
+Also, take a look at the [test directory](test/), it contains **a lot** of examples of different semantics of the library methods
 
 # License
 

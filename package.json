@@ -13,13 +13,19 @@
     "lint:src": "eslint src",
     "lint:test": "eslint test",
     "lint": "npm run lint:src && npm run lint:test",
-    "test": "mocha --recursive -t 300 -R spec test",
+    "test:unit": "mocha --recursive -t 300 -R spec test/unit",
+    "test:browser-prepare": "npm run build:uglify && npm run build:umd && npm run build:source && npm run build:post-clean",
+    "test:browser-clean": "rm -f dist/index.*",
+    "test:browser": "npm run test:browser-clean; npm run test:browser-prepare && PATH=$PATH:./node_modules/chromedriver/lib/chromedriver/chromedriver node test/browser; npm run test:browser-clean;",
+    "test:browser-server": "npm run test:browser-clean; npm run test:browser-prepare && node test/browser/slow-server.js --standalone",
+    "test": "npm run test:unit && npm run test:browser",
     "check": "npm run test && npm run lint",
     "build:uglify": "uglifyjs -m toplevel src/index.js > dist/index.src.js",
     "build:umd": "umd noThanks -c dist/index.src.js > dist/index.min.js",
     "build:source": "cp src/index.js dist/",
     "build:post-clean": "rm dist/index.src.js",
-    "build": "npm run check && npm run build:uglify && npm run build:umd && npm run build:source && npm run build:post-clean"
+    "build": "npm run clean && npm run check && npm run build:uglify && npm run build:umd && npm run build:source && npm run build:post-clean",
+    "clean": "rm -f dist/index.*"
   },
   "author": "vacavaca <vacavaca@fastmail.com>",
   "bugs": {
@@ -38,9 +44,14 @@
   ],
   "license": "MIT",
   "devDependencies": {
+    "chai": "^4.1.2",
+    "chalk": "^2.4.1",
+    "chromedriver": "^2.38.3",
     "eslint": "^4.19.1",
+    "express": "^4.16.3",
     "gitbook-cli": "^2.3.2",
     "mocha": "^5.2.0",
+    "selenium-webdriver": "^4.0.0-alpha.1",
     "uglify-es": "^3.3.9",
     "umd": "^3.0.3"
   }

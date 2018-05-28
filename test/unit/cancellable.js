@@ -1,6 +1,6 @@
 const assert = require('assert')
 
-const { CancellablePromise, cancellable } = require('../src')
+const { CancellablePromise, cancellable } = require('../../src')
 const { endsWith, patchItToCheckUnhandledRejections } = require('./util')
 
 const createTask = (timeout, name, log) => new Promise(resolve => {

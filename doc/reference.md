@@ -10,7 +10,7 @@ Cancellable promise - Promise that can be canceled
 
 | Param | Type | Description | Default |
 | --- | --- | --- | --- |
-| resolver | Function&#124;Promise | promise resolver ||
+| resolver | Function&#124;Promise&#124;Object | promise resolver or promise-like value ||
 | finalizer | ?Function | finalizer | `null` |
 
 ### Methods
@@ -46,13 +46,31 @@ cancellation result
 
 ## cancellable
 
-> **cancellable** (**task**: Promise|AsyncFunction, **finalizer**: ?Function = null, **fineGrained**: boolean = true) => [CancellablePromise](#cancellablepromise)
+> **cancellable** (**task**: Promise|AsyncFunction|Object, **finalizer**: ?Function = null, **fineGrained**: boolean = true) => [CancellablePromise](#cancellablepromise)
 
 Create cancellable task
 
 | Param | Type | Description | Default |
 | --- | --- | --- | --- |
-| task | Promise&#124;AsyncFunction | task to make cancellable ||
+| task | Promise&#124;AsyncFunction&#124;Object | task to make cancellable ||
+| finalizer | ?Function | finalizer to call after cancel | `null` |
+| fineGained | boolean | supply "grain" function to the given task, if the task has a type of AsyncFunction | `true` |
+
+**Returns** [CancellablePromise](#cancellablepromise)
+
+cancellable promise
+
+---
+
+## interruptible
+
+> **interruptible** (**task**: Promise|AsyncFunction|Object, **finalizer**: ?Function = null, **fineGrained**: boolean = true) => [CancellablePromise](#cancellablepromise)
+
+Create interruptible task
+
+| Param | Type | Description | Default |
+| --- | --- | --- | --- |
+| task | Promise&#124;AsyncFunction&#124;Object | task to make interruptible ||
 | finalizer | ?Function | finalizer to call after cancel | `null` |
 | fineGained | boolean | supply "grain" function to the given task, if the task has a type of AsyncFunction | `true` |
 
@@ -77,3 +95,35 @@ Create cancellable promise from generator that yields other promises
 **Returns** [CancellablePromise](#cancellablepromise)
 
 cancellable promise
+
+---
+
+## compose
+
+> **compose** (**promise**: Promise|Object) => `Promise`
+
+Wraps a promise into another to safely return it from async functions, then methods and resolvers. Stops javascript from performing automatic chaining
+
+| Param | Type | Description | Default |
+| --- | --- | --- | --- |
+| promise | Promise&#124;Object | any value to wrap ||
+
+**Returns** `Promise`
+
+wrapped promise
+
+---
+
+## decompose
+
+> **decompose** (**promise**: Object) => `Promise`
+
+Handler to unwrap a value previously wrapped with compose
+
+| Param | Type | Description | Default |
+| --- | --- | --- | --- |
+| promise | Promise&#124;Object | wrapped value ||
+
+**Returns** `Promise`
+
+unwrapped promise

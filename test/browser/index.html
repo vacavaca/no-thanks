@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+    <link rel="stylesheet" href="/mocha.css">
+</head>
+
+<body>
+    <div id="mocha"></div>
+
+    <script src="/lib/chai.js"></script>
+    <script src="/lib/mocha.js"></script>
+
+    <script type="text/javascript" src="/lib/jquery-3.3.1.min.js"></script>
+    <script type="text/javascript">
+        var jQuery3 = $.noConflict(true);
+    </script>
+
+    <script type="text/javascript" src="/lib/jquery-1.12.4.min.js"></script>
+    <script type="text/javascript">
+        var jQuery1 = $.noConflict(true);
+    </script>
+
+    <script src="/lib/noThanks.min.js"></script>
+
+    <script>
+        let results = []
+        let finished = false
+        function reporter(runner) {
+            runner.on('pass', (test) =>
+                results.push({ passed: true, name: test.fullTitle() }));
+
+            runner.on('fail', (test, err) =>
+                results.push({ passed: false, name: test.fullTitle(), message: err.message, stack: err.stack }));
+
+            runner.on('end', () => finished = true)
+        }
+
+        window.getTestResults = () => ({
+            tests: results.splice(0, results.length),
+            finished
+        })
+
+        mocha.setup({
+            ui: 'bdd',
+            reporter: window.location.href.indexOf('test') !== -1 ? reporter : 'html',
+            fullTrace: true
+        })
+        chai.should()
+    </script>
+    <script src="/examples.js"></script>
+    <script>
+        mocha.checkLeaks();
+        mocha.globals(['noThanks']);
+        mocha.run();
+    </script>
+</body>
+
+</html>
