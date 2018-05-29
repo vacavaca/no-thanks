@@ -1,5 +1,5 @@
 # No Thanks!
-### Fine-grained cancelation for promises
+### Fine-grained cancellation for promises
 
 The **no-thanks** package provides a set of **utilities to cancel a promise** that can be used as a **primitives** to compose more complex pipelines with the ability to stop execution at any time
 
