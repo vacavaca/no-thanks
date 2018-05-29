@@ -1,6 +1,20 @@
 const assert = chai.assert
 const noThanks = window.noThanks
 
+if (!window.AbortController) {
+    class AbortControllerPolyfill {
+        constructor () {
+            this.signal = { abrted: false }
+        }
+
+        abort() {
+            this.signal.aborted = true
+        }
+    }
+
+    window.AbortController = AbortControllerPolyfill
+}
+
 const fail = obj => assert.fail(null, null, obj)
 
 describe('examples', function () {

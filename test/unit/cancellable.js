@@ -69,6 +69,71 @@ describe("cancellable", () => {
             .then(done, done)
     })
 
+    it('should cancel not fine-grained', done => {
+        const log = []
+        const task1 = createTask(4, 1, log)
+        const job = cancellable(async () => {
+            try {
+                await task1
+                await createTask(4, 2, log)
+                await createTask(4, 3, log)
+                log.push('then')
+            } catch (err) {
+                done(err)
+            }
+        })()
+
+        setTimeout(() => job.cancel(), 5)
+
+        endsWith(
+            () => (log.includes('done 2')),
+            16, "Promise isn't done or fulfilled")
+            .then(() => {
+                assert.deepEqual(log, [
+                    'start 1',
+                    'done 1',
+                    'start 2',
+                    'done 2',
+                    'start 3',
+                    'done 3',
+                    'then',
+                ])
+            })
+            .then(done, done)
+    })
+
+    it('should cancel with disabled granularity', done => {
+        const log = []
+        const task1 = createTask(4, 1, log)
+        const job = cancellable(async () => {
+            try {
+                await task1
+                await createTask(4, 2, log)
+                await createTask(4, 3, log)
+                log.push('then')
+            } catch (err) {
+                done(err)
+            }
+        }, null, false)()
+
+        setTimeout(() => job.cancel(), 5)
+
+        endsWith(
+            () => (log.includes('done 2')),
+            16, "Promise isn't done or fulfilled")
+            .then(() => {
+                assert.deepEqual(log, [
+                    'start 1',
+                    'done 1',
+                    'start 2',
+                    'done 2',
+                    'start 3',
+                    'done 3',
+                    'then'
+                ])
+            })
+            .then(done, done)
+    })
 
     it('should not cancel fine-grained if not used', done => {
         const log = []
