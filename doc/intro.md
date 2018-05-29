@@ -8,7 +8,7 @@ The **no-thanks** package provides a set of **utilities to cancel a promise** th
 20 kB source, 5.8 kB minified, **1.8 kB** gzipped
 
 Quick links:
- * [Documentation](/)
+ * [Source Code](https://github.com/vacavaca/no-thanks)
  * [API Reference](/reference.md)
  * [Release Notes](https://github.com/vacavaca/no-thanks/releases)
 

@@ -1,5 +1,5 @@
 # No Thanks!
-### Fine-grained cancelation for promises
+### Fine-grained cancellation for promises
 
 The **no-thanks** package provides a set of **utilities to cancel a promise** that can be used as a **primitives** to compose more complex pipelines with the ability to stop execution at any time
 
@@ -7,8 +7,9 @@ The **no-thanks** package provides a set of **utilities to cancel a promise** th
 
 20 kB source, 5.8 kB minified, **1.8 kB** gzipped
 
+:octocat:   [**Docs**  :link:](https://vacavaca.github.io/no-thanks-docs/)
+
 Quick links:
- * [Documentation](doc/)
  * [API Reference](doc/reference.md)
  * [Release Notes](https://github.com/vacavaca/no-thanks/releases)
 
