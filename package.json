@@ -1,6 +1,6 @@
 {
   "name": "no-thanks",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Fine-Grained cancellation primitives",
   "main": "dist/index.min.js",
   "scripts": {
