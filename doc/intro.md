@@ -28,7 +28,13 @@ This library provides such tools, along with a cancellation callbacks to free up
 ## Getting Started
 
 ```js
-const { CancellablePromise, cancellable, coroutine } = require('no-thanks')
+const {
+    CancellablePromise, 
+    cancellable, 
+    interruptible, 
+    coroutine, 
+    compose, 
+    decompose } = require('no-thanks')
 ```
 
 If the package is included in a browser with `<script>` tag, it can be found at `window.noThanks` key

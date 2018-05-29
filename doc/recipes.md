@@ -86,7 +86,7 @@ const request = interruptible(async grain => {
 Using **jQuery.ajax** with jquery <= 1.5
 
 ```js
-const { cancellable } = require('no-thanks')
+const { interruptible } = require('no-thanks')
 
 const request = interruptible(async grain => {
     return await new Promise((resolve, reject) => grain($.ajax({
