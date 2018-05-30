@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
  - Fix typo in docs
  - Fix example in docs
+### Changed
+ - Simplify example with network request
 ### Added
  - More tests
 

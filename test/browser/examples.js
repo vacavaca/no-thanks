@@ -24,9 +24,9 @@ describe('examples', function () {
         const controller = new AbortController()
 
         const request = noThanks.interruptible(async () =>
-            noThanks.compose(fetch('/test', {
+            fetch('/test', {
                 signal: controller.signal,
-            })), () => controller.abort())().then(noThanks.decompose)
+            }), () => controller.abort())()
             .then(() => fail('unexpected fulfillment'))
             .catch(done)
 
@@ -44,9 +44,9 @@ describe('examples', function () {
         const controller = new AbortController()
 
         return noThanks.interruptible(async () =>
-            noThanks.compose(fetch('/test', {
+            fetch('/test', {
                 signal: controller.signal,
-            })), () => controller.abort())().then(noThanks.decompose)
+            }), () => controller.abort())()
             .then(response => response.text())
             .then(result => assert.equal(result, 'test'))
     })

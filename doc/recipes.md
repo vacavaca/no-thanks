@@ -9,15 +9,15 @@ Make a cancellable network request
 Using `fetch` and `AbortController`
 
 ```js
-const { interruptible, compose, decompose } = require('no-thanks')
+const { interruptible } = require('no-thanks')
 
 const controller = new AbortController()
 
 const request = interruptible(async () =>
-    compose(fetch({
+    fetch({
         signal: controller.signal,
         /* other request options */
-    })), () => controller.abort())().then(decompose)
+    }), () => controller.abort())()
 ```
 
 or without closure
