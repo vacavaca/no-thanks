@@ -16,7 +16,7 @@
     "test:unit": "mocha --recursive -t 300 -R spec test/unit",
     "test:browser-prepare": "npm run build:uglify && npm run build:umd && npm run build:source && npm run build:post-clean",
     "test:browser-clean": "rm -f dist/index.*",
-    "test:browser": "npm run test:browser-clean; npm run test:browser-prepare && PATH=$PATH:./node_modules/chromedriver/lib/chromedriver/chromedriver node test/browser; npm run test:browser-clean;",
+    "test:browser": "npm run test:browser-clean; npm run test:browser-prepare && PATH=$PATH:./node_modules/chromedriver/lib/chromedriver/chromedriver node test/browser && npm run test:browser-clean",
     "test:browser-server": "npm run test:browser-clean; npm run test:browser-prepare && node test/browser/slow-server.js --standalone",
     "test": "npm run test:unit && npm run test:browser",
     "check": "npm run test && npm run lint",
