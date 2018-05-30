@@ -5,6 +5,8 @@ The **no-thanks** package provides a set of **utilities to cancel a promise** th
 
 `npm i --save no-thanks`
 
+[![Build Status](https://travis-ci.org/vacavaca/no-thanks.svg?branch=master)](https://travis-ci.org/vacavaca/no-thanks)
+
 20 kB source, 5.8 kB minified, **1.8 kB** gzipped
 
 :octocat:   [**Docs**  :link:](https://vacavaca.github.io/no-thanks-docs/)
