@@ -62,7 +62,7 @@ When the `cancel` method is called while the `someTask` is not finished, fulfill
 
 If `someTask` has finished execution before the `cancel` method was called, the cancellation has no effect, but the finalizer (if given) will be called anyway. 
 
-**Note** `CacnellablePromise` constructor and `cancellable` function are interchangeable except the *fineGrained* parameter that will be discussed a bit later
+**Note** `CancellablePromise` constructor and `cancellable` function are interchangeable except the *fineGrained* parameter that will be discussed a bit later
 
 ### Finalization
 

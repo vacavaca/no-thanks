@@ -90,7 +90,7 @@ job.cancel()
 // > finalization
 ```
 
-Because **finalizer is called asynchronously** `cancel` method of the `CacnellablePromise` returns a `Promise` with the result of finalizer call. If the finalizer returns promise it will be automatically chained into a cancellation result promise
+Because **finalizer is called asynchronously** `cancel` method of the `CancellablePromise` returns a `Promise` with the result of finalizer call. If the finalizer returns promise it will be automatically chained into a cancellation result promise
 
 ```js
 const job = cancellable(someTask, () => Promise.resolve(42))
