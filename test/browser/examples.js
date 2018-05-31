@@ -23,7 +23,7 @@ describe('examples', function () {
     it('should cancel fetch', done => {
         const controller = new AbortController()
 
-        const request = noThanks.interruptible(async () =>
+        const request = noThanks.interruptible(() =>
             fetch('/test', {
                 signal: controller.signal,
             }), () => controller.abort())()
@@ -43,7 +43,7 @@ describe('examples', function () {
     it('should not cancel fetch', () => {
         const controller = new AbortController()
 
-        return noThanks.interruptible(async () =>
+        return noThanks.interruptible(() =>
             fetch('/test', {
                 signal: controller.signal,
             }), () => controller.abort())()

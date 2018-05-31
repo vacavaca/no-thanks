@@ -13,7 +13,7 @@ const { interruptible } = require('no-thanks')
 
 const controller = new AbortController()
 
-const request = interruptible(async () =>
+const request = interruptible(() =>
     fetch({
         signal: controller.signal,
         /* other request options */
