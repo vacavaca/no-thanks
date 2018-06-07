@@ -114,15 +114,16 @@ const stat = promisify(fs.stat)
 const read = promisify(fs.read)
 
 const sum = cancellable(async (grain, filename) => {
-    const { blksize } = await grain(stat(filename))
-    const handle = await grain(open(filename))
+    const { blksize, size } = await grain(stat(filename))
+    const handle = await grain(open(filename, 'r'))
 
     let sum = 0
-    let read = null
-    while (read == null || read > 0) {
+    let offset = 0
+    while (offset < size) {
         const buffer = Buffer.alloc(blksize)
-        read = await grain(read(handle, buffer, 0, blksize, 0))
-        if (read > 0)
+        const { bytesRead } = await grain(read(handle, buffer, 0, blksize, offset))
+        offset += blksize
+        if (bytesRead > 0)
             sum += buffer.reduce((a, b) => a + b, 0)
     }
 
@@ -130,5 +131,5 @@ const sum = cancellable(async (grain, filename) => {
 }, (_, handle) => handle != null && handle.close())
 
 sum('dir/some-file.dat')
-    .then(sum => console.log(`Sum: ${sum}))
+    .then(sum => console.log(`Sum: ${sum}`))
 ```
